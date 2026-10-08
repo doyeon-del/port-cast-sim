@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+# 차트 스크립트가 함께 만드는 발표용 변형본
+out/*_canva.png
+out/*_deck.png
+out/vframe_*.png
+out/canva/
