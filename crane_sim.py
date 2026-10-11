@@ -361,7 +361,7 @@ def run(op_key: str, mode: str, seed: int, bc_model=None, skill: SkillEstimator 
     touching_guide = False
     max_sway = 0.0
     log = {k: [] for k in ["t", "x", "L", "th", "px", "pdepth", "deck", "tx", "u_op", "u_eff_t", "u_eff_h",
-                           "risk_now", "risk_pred", "vib", "pull", "skill", "beta"]} if keep_log else None
+                           "risk_now", "risk_pred", "vib", "pull", "skill", "beta", "u_op_h"]} if keep_log else None
 
     alert = False
     u_op_t = u_op_h = 0.0
@@ -443,7 +443,7 @@ def run(op_key: str, mode: str, seed: int, bc_model=None, skill: SkillEstimator 
         if keep_log:
             for k, val in zip(log.keys(), [s.t, s.x, s.L, s.th, s.px, s.pdepth, sc.deck_depth(s.t), sc.target_x(s.t),
                                            u_op_t, u_t, u_h, r_now, risk_pred if mode == "C" else r_now,
-                                           vib, pull, sk, beta]):
+                                           vib, pull, sk, beta, u_op_h]):
                 log[k].append(val)
 
         if gap <= 0:

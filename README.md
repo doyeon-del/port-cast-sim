@@ -21,6 +21,7 @@ python experiment.py 60      # 모방 모델 학습 + 상태 추정기 보정 + 
 python make_charts.py        # 비교 차트 4종 + out/summary.csv
 python make_state_chart.py   # 작업자 상태 그래프
 python make_video.py 10      # 나란히 비교 영상 (약 6분, ffmpeg 필요)
+python make_anatomy_chart.py # 착지 한 판 해부 (영상과 같은 판)
 python experiment_busan.py   # 부산신항 실측 해상 자료(Open-Meteo)로 바다 조건 재현
 OMP_NUM_THREADS=1 python verify_1000.py   # 피곤한 작업자 A·C 각 1000회 재검증 (약 16분)
 ```
@@ -34,6 +35,7 @@ OMP_NUM_THREADS=1 python verify_1000.py   # 피곤한 작업자 A·C 각 1000회
 | `crane_sim.py` | 크레인 진자 물리, 출렁이는 선박, 바람, 셀 가이드, 가상 운전자, 위험 예측, 숙련도 추정, 보조 모드 |
 | `experiment.py` | 숙련자 모방 모델(MLP) 학습, 숙련도 추정기(로지스틱 회귀) 보정, 비교 실험 |
 | `make_charts.py` / `make_state_chart.py` / `make_video.py` | 차트·작업자 상태 그래프·비교 영상 |
+| `make_anatomy_chart.py` | 착지 한 판을 시간축으로 펼친 해부 차트 |
 | `experiment_busan.py` | 실측 해상 자료(`data/busan_sea_hourly.csv`)로 평상시·거친 날 비교 |
 | `verify_1000.py` | 60회 결과 재검증 (1000회, 95% 신뢰구간) |
 
@@ -74,6 +76,17 @@ OMP_NUM_THREADS=1 python verify_1000.py   # 피곤한 작업자 A·C 각 1000회
 
 - 숙련자−초보 성공률 격차: A +52%p → B +32%p → C −7%p
 - 솔직하게 볼 점: 초보는 실효 시간도 C가 가장 빠르다. 지친 숙련자는 C(67초)가 B(64초)보다 약간 느리다(신중한 하강). 안전(거친 착지 0%)은 모든 운전자에서 C가 앞선다.
+
+## 착지 한 판 해부
+
+![착지 한 판 해부](out/chart_landing_anatomy.png)
+
+비교 영상과 같은 판(피곤한 작업자, 가상 바다 #2)을 시간축으로 펼쳤다.
+
+- 가이드 진입 구간: 2.5초 앞 예측 위험이 0.5를 넘은 시각(32.6초)이 실제 위험이 0.5를 넘은 시각(34.9초)보다 2.3초 빨랐고, 진동은 그 사이에 시작됐다. 작업자는 진동을 느끼고 하강을 멈췄다.
+- 착지 구간: 지금 위험은 0.05 이하였지만 예측 위험이 0.79까지 올라 진동과 저항이 걸렸다. 작업자가 넣은 하강 입력보다 크레인에 들어간 값이 작다.
+- 결과: 보조 없음은 41.2초에 0.64 m/s로 거친 착지, Port Cast는 6.2초 늦은 47.4초에 0.37 m/s로 정상 착지.
+- 작업자 상태 점수는 28초 이후 내내 72 아래에 머물러 보조가 계속 켜져 있었다.
 
 ## 1000회 재검증 (피곤한 작업자)
 
