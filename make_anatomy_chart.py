@@ -6,8 +6,10 @@
   3. 하강 조이스틱 — 작업자가 넣은 값 vs 크레인에 실제로 들어간 값 (저항)
   4. 작업자 상태 점수 — 낮을수록 보조가 세진다
 
-실행: python make_anatomy_chart.py [seed=2] [op=tired]
+실행: python make_anatomy_chart.py [seed=2] [op=tired] [--slide]
 결과: out/chart_landing_anatomy.png (+ _2x.png)
+      --slide: 포트폴리오 슬라이드용 out/chart_landing_anatomy_slide.png
+               (흰 배경·제목 없음·①~③만, 8.4×4.95인치 원寸, 회색 대신 오렌지 대비)
 """
 
 import pickle
@@ -35,6 +37,10 @@ OCEAN = "#0E4FB8"      # Port Cast
 BASE = "#7A8799"       # 보조 없음 / 작업자 원래 입력 (배경 역할)
 NOW = "#D9631E"        # 지금 위험
 VIB = "#DCE6F7"        # 진동 구간 음영
+
+# 슬라이드용 (포트폴리오 톤: 흰 배경, 포인트 바다 블루 1색 + 비교 오렌지)
+S_INK, S_SUB, S_LINE = "#191F28", "#4E5968", "#E5E8EB"
+S_BLUE, S_ORANGE, S_VIB = "#1F5FBF", "#E8590C", "#E6EEFA"
 
 T0 = 28.0              # 앞부분은 컨테이너를 옮기는 구간이라 생략
 
@@ -81,9 +87,12 @@ def end_label(ax, x, y, text, color, dy=0, weight="semibold"):
 
 
 def main():
-    seed = int(sys.argv[1]) if len(sys.argv) > 1 else 2
-    op = sys.argv[2] if len(sys.argv) > 2 else "tired"
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    seed = int(args[0]) if args else 2
+    op = args[1] if len(args) > 1 else "tired"
     ra, rc = run_pair(seed, op)
+    if "--slide" in sys.argv:
+        return slide_chart(ra, rc)
     ta, tc = arr(ra, "t"), arr(rc, "t")
     gap_a = arr(ra, "deck") - arr(ra, "pdepth")
     gap_c = arr(rc, "deck") - arr(rc, "pdepth")
@@ -187,6 +196,91 @@ def main():
         fig.savefig(OUT / f"{name}.png", facecolor=PAPER, dpi=dpi)
     print(f"A {ra.cycle_time:.2f}s {ra.impact:.3f} m/s | C {rc.cycle_time:.2f}s {rc.impact:.3f} m/s | "
           f"예측 {tc[i_pred]:.2f}s → 실제 {tc[i_now]:.2f}s (lead {lead:.2f}s)")
+
+
+def slide_chart(ra, rc):
+    """포트폴리오 슬라이드에 원寸(8.4×4.95인치)으로 넣는 3단 버전. 제목·각주는 슬라이드가 맡는다."""
+    ta, tc = arr(ra, "t"), arr(rc, "t")
+    gap_a = arr(ra, "deck") - arr(ra, "pdepth")
+    gap_c = arr(rc, "deck") - arr(rc, "pdepth")
+    r_pred, r_now = arr(rc, "risk_pred"), arr(rc, "risk_now")
+    vib = arr(rc, "vib") > 0
+    uh_op, uh_eff = arr(rc, "u_op_h"), arr(rc, "u_eff_h")
+    w = tc >= T0
+    i_pred = np.argmax(w & (r_pred > 0.5))
+    i_now = np.argmax(w & (r_now > 0.5))
+    lead = tc[i_now] - tc[i_pred]
+    t1 = tc[-1] + 0.6
+
+    fig, axes = plt.subplots(3, 1, figsize=(8.4, 4.95), dpi=200, sharex=True,
+                             gridspec_kw={"height_ratios": [1.25, 1.0, 1.0], "hspace": 0.55})
+    fig.patch.set_facecolor("white")
+
+    def sty(ax, label):
+        ax.set_facecolor("white")
+        for sp in ["top", "right", "left"]:
+            ax.spines[sp].set_visible(False)
+        ax.spines["bottom"].set_color(S_LINE)
+        ax.tick_params(colors=S_SUB, labelsize=8, length=0, pad=2)
+        ax.yaxis.grid(True, color=S_LINE, lw=0.6)
+        ax.set_axisbelow(True)
+        ax.text(0, 1.06, label, transform=ax.transAxes, fontsize=9.5, color=S_INK, fontweight="semibold",
+                va="bottom")
+
+    # ① 남은 높이
+    ax = axes[0]
+    sty(ax, "① 적재면까지 남은 높이 (m)")
+    ax.axhline(cs.GUIDE_H, color=S_SUB, lw=0.7)
+    ax.text(T0 + 0.1, cs.GUIDE_H + 0.25, "셀 가이드 입구", color=S_SUB, fontsize=7.5)
+    ax.plot(ta, gap_a, color=S_ORANGE, lw=1.6)
+    ax.plot(tc, gap_c, color=S_BLUE, lw=1.9)
+    for t_end, r, name, color in [(ta[-1], ra, "보조 없음", S_ORANGE), (tc[-1], rc, "Port Cast", S_BLUE)]:
+        ax.plot(t_end, 0, "o", ms=5.5, color=color, mec="white", mew=1.2, zorder=5)
+        rough = r.impact >= cs.IMPACT_TOL
+        ax.text(t_end + 0.1, -0.9, f"{name}  {r.impact:.2f} m/s {'거친 착지' if rough else '정상 착지'}",
+                color=color, fontsize=8, ha="right", va="top", fontweight="semibold")
+    ax.set_ylim(-2.9, 9)
+    ax.set_yticks([0, 4, 8])
+
+    # ② 위험도
+    ax = axes[1]
+    sty(ax, "② Port Cast가 본 위험도 (0~1)  ·  음영 = 조이스틱 진동")
+    for a, b in spans(tc, vib):
+        if b > T0:
+            for x in axes[1:]:
+                x.axvspan(max(a, T0), b, color=S_VIB, lw=0, zorder=0)
+    ax.plot(tc, r_now, color=S_INK, lw=1.1)
+    ax.plot(tc, r_pred, color=S_BLUE, lw=1.6)
+    for x in (tc[i_pred], tc[i_now]):
+        ax.plot([x, x], [-0.17, 0.5], color=S_INK, lw=0.6)
+    ax.annotate("", xy=(tc[i_pred], -0.14), xytext=(tc[i_now], -0.14),
+                arrowprops=dict(arrowstyle="<->", color=S_INK, lw=0.7, shrinkA=0, shrinkB=0, mutation_scale=7))
+    ax.text(tc[i_pred] - 0.2, -0.14, f"예측이 {lead:.1f}초 먼저", ha="right", va="center", fontsize=7.5, color=S_INK)
+    ax.text(T0 + 0.1, 0.2, "2.5초 앞 예측", color=S_BLUE, fontsize=8, fontweight="semibold")
+    ax.text(tc[i_now] + 2.4, 0.62, "지금 위험", color=S_INK, fontsize=8, fontweight="semibold")
+    ax.set_ylim(-0.25, 1.08)
+    ax.set_yticks([0, 0.5, 1])
+
+    # ③ 하강 조이스틱
+    ax = axes[2]
+    sty(ax, "③ 하강 조이스틱 (0 정지 ~ 1 최대)")
+    ax.fill_between(tc, uh_eff, np.maximum(uh_op, uh_eff), color=S_BLUE, alpha=0.16, lw=0)
+    ax.plot(tc, uh_op, color=S_INK, lw=0.9)
+    ax.plot(tc, uh_eff, color=S_BLUE, lw=1.6)
+    ax.text(T0 + 0.1, 0.72, "작업자가 넣은 값", color=S_INK, fontsize=8, fontweight="semibold")
+    ax.text(T0 + 0.1, 0.06, "크레인에 들어간 값", color=S_BLUE, fontsize=8, fontweight="semibold")
+    m = (tc > 37) & (tc < 40)
+    j = np.argmax(np.where(m, uh_op - uh_eff, -1))
+    ax.annotate("당김·저항으로 줄인 만큼", xy=(tc[j], (uh_op[j] + uh_eff[j]) / 2), xytext=(tc[j] + 1.0, 0.82),
+                fontsize=7.5, color=S_BLUE, arrowprops=dict(arrowstyle="-", color=S_BLUE, lw=0.6))
+    ax.set_ylim(-0.05, 1.0)
+    ax.set_yticks([0, 0.5, 1])
+    ax.set_xlim(T0, t1)
+    ax.set_xlabel("시간 (초)", color=S_SUB, fontsize=8, labelpad=2)
+
+    fig.subplots_adjust(left=0.05, right=0.99, top=0.93, bottom=0.09)
+    fig.savefig(OUT / "chart_landing_anatomy_slide.png", facecolor="white")
+    print(f"slide: lead {lead:.2f}s")
 
 
 if __name__ == "__main__":
